@@ -4,25 +4,34 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cda-api-common"
-version = "1.0.0"
+version = "1.1.0"
 description = "逢甲大學資料分析中心 開放資料 API 的共用基礎模組"
-requires-python = ">=3.10"
 
-# 相依版本的單一來源。
+# pandas 3.0 需要 3.11 以上。Docker image 是 python:3.13-slim，
+# 本機開發也請用 3.13（Windows 上以 py -3.13 建立 venv），
+# 否則會裝到不同版本的相依，本機測過的行為不代表正式環境的行為。
+requires-python = ">=3.11"
+
+# 相依版本的單一來源，精確釘選。
 #
-# 目前刻意沿用各 API requirements.txt 既有的寬鬆條件，讓「搬到共用套件」
-# 這次遷移只改變一件事（程式碼位置），不順便改變另一件事（套件版本）。
+# 這組數字取自正式環境實際跑的版本（docker exec research_api pip freeze），
+# 所以釘選本身不改變任何現有行為，只是把「下次 build 會裝到什麼」固定下來。
 #
-# 遷移完成、確認行為一致之後，再用 server 上實際跑的版本收斂成精確釘選：
-#     docker exec smart_meter_api pip freeze
-# 屆時改這裡一個地方，所有 API 下次 build 就會一致。
+# 之前是 fastapi、pandas 這類不帶版號的寫法，代表同一份程式碼在不同時間
+# build 出來的 image 可能裝到不同版本 —— 四支的時候只是運氣問題，
+# 一百支的時候就是「為什麼這支好好的，那支壞了」的常態。
+#
+# 要升級時改這裡，發新的 tag，再分批把各 API 的 requirements.txt 指過去。
 dependencies = [
-    "fastapi",
-    "uvicorn",
-    "psycopg2-binary>=2.9",
-    "python-dotenv>=1.0",
-    "pandas>=2.0",
-    "pytz",
+    "fastapi==0.141.1",
+    "starlette==1.6.0",
+    "pydantic==2.13.5",
+    "uvicorn==0.52.4",
+    "pandas==3.0.5",
+    "numpy==2.5.2",
+    "psycopg2-binary==2.9.12",
+    "python-dotenv==1.2.3",
+    "pytz==2026.3.post1",
 ]
 
 [tool.setuptools.packages.find]

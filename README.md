@@ -10,24 +10,39 @@
 在各 API 的 `requirements.txt` 寫：
 
 ```
-cda-api-common @ git+https://github.com/twliu06/cda_api_common.git@v1.0.0
+cda-api-common @ https://github.com/twliu06/cda_api_common/archive/refs/tags/v1.1.0.tar.gz
 ```
 
-**一定要釘 tag，不要用 `@main`。** 用 `@main` 的話，這裡推一個有問題的 commit，
+**用 tarball 網址，不要用 `git+https://`。** `python:3.13-slim` 裡沒有 `git`，
+從 `git+` 安裝會失敗（`ERROR: Cannot find command 'git'`）。要嘛在 Dockerfile 裡
+`apt-get install git`，讓每支 API 的 image 都多約 50MB，要嘛用 tarball —— 後者
+不需要 git，一樣釘在 tag 上。
+
+**一定要釘版本，不要指向 main。** 指向 main 的話，這裡推一個有問題的 commit，
 下次任何一支 API 重新 build 就會裝到，而且是無聲的。釘 tag 才有辦法分批升級、
 先在一支上確認再推廣。
 
-升級時：
+升級時（PowerShell）：
 
-```bash
-for d in */; do sed -i 's/@v1\.0\.0/@v1.1.0/' "$d/requirements.txt"; done
+```powershell
+Get-ChildItem -Directory | ForEach-Object {
+  $f = Join-Path $_.FullName "requirements.txt"
+  if (Test-Path $f) {
+    (Get-Content $f) -replace "v1\.1\.0", "v1.2.0" | Set-Content $f
+  }
+}
 ```
 
 本機開發可以改成可編輯安裝，改套件立刻生效：
 
-```bash
-pip install -e ../cda_api_common
+```powershell
+py -3.13 -m venv .venv
+.venv\Scripts\python.exe -m pip install -e ..\cda_api_common
 ```
+
+**本機請用 Python 3.13**，跟 Docker image 一致。用 3.10 會裝到完全不同版本的
+pandas（3.0 需要 3.11 以上，3.10 只能裝到 2.x），本機測過的行為不代表正式環境
+的行為。
 
 ## 使用
 
@@ -64,6 +79,17 @@ app.include_router(measurements.router, prefix="/v1")
 ```python
 from cda_api_common.db import get_conn_direct
 ```
+
+## 環境變數
+
+## 相依版本
+
+`pyproject.toml` 精確釘選了 fastapi、starlette、pydantic、uvicorn、pandas、numpy、
+psycopg2-binary、python-dotenv、pytz。這組數字取自正式環境實際跑的版本
+（`docker exec research_api pip freeze`），所以釘選本身沒有改變任何現有行為。
+
+要升級某個套件時：改 `pyproject.toml` → 跑 `tests/test_smoke.py` → 發新 tag →
+先把一支 API 指過去確認 → 再推廣到其他支。這是釘版本才有的能力。
 
 ## 環境變數
 
