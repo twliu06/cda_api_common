@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.vscode/
+.idea/
+.venv/
+venv/
+.env
+
+# 比對工具的輸出
+before.json
+after.json

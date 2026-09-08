@@ -1,0 +1,4 @@
+# 統一換行為 LF。
+# 各 API 目前的 utils/ 已經出現 CRLF 與 LF 混雜（sdg_api、smart_meter_api 是
+# CRLF，另外兩支是 LF），會讓 diff 整檔變紅、看不出真正的改動。
+* text=auto eol=lf

@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cda-api-common"
+version = "1.0.0"
+description = "逢甲大學資料分析中心 開放資料 API 的共用基礎模組"
+requires-python = ">=3.10"
+
+# 相依版本的單一來源。
+#
+# 目前刻意沿用各 API requirements.txt 既有的寬鬆條件，讓「搬到共用套件」
+# 這次遷移只改變一件事（程式碼位置），不順便改變另一件事（套件版本）。
+#
+# 遷移完成、確認行為一致之後，再用 server 上實際跑的版本收斂成精確釘選：
+#     docker exec smart_meter_api pip freeze
+# 屆時改這裡一個地方，所有 API 下次 build 就會一致。
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "psycopg2-binary>=2.9",
+    "python-dotenv>=1.0",
+    "pandas>=2.0",
+    "pytz",
+]
+
+[tool.setuptools.packages.find]
+include = ["cda_api_common*"]
