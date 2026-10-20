@@ -10,7 +10,7 @@
 在各 API 的 `requirements.txt` 寫：
 
 ```
-cda-api-common @ https://github.com/twliu06/cda_api_common/archive/refs/tags/v1.2.0.tar.gz
+cda-api-common @ https://github.com/twliu06/cda_api_common/archive/refs/tags/v1.2.1.tar.gz
 ```
 
 **用 tarball 網址，不要用 `git+https://`。** `python:3.13-slim` 裡沒有 `git`，

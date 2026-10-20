@@ -280,15 +280,22 @@ def weekly_message(records: list[Record], start: date, end: date, details: str) 
 
         slowest, durations = max(by_endpoint.items(), key=lambda item: sum(item[1]) / len(item[1]))
 
+        client_errors = sum(1 for r in external if 400 <= r.status < 500)
+        server_errors = sum(1 for r in external if r.status >= 500)
+
+        # 都沒有時寫「無」，「4xx 0 筆｜5xx 0 筆」乍看像是有錯誤；
+        # 有任一種時兩個數字都列，方便對照
+        errors = (
+            f"4xx {client_errors:,} 筆｜5xx {server_errors:,} 筆"
+            if client_errors or server_errors
+            else "無"
+        )
+
         sections.append(Section(
             heading="總覽",
             facts=[
                 ("請求數", f"{len(external):,} 筆（上週 {previous:,}{change}）"),
-                (
-                    "錯誤",
-                    f"4xx {sum(1 for r in external if 400 <= r.status < 500):,} 筆｜"
-                    f"5xx {sum(1 for r in external if r.status >= 500):,} 筆",
-                ),
+                ("錯誤", errors),
                 ("最慢", f"{slowest} 平均 {sum(durations) / len(durations):.2f}s"),
             ],
         ))
