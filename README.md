@@ -10,7 +10,7 @@
 在各 API 的 `requirements.txt` 寫：
 
 ```
-cda-api-common @ https://github.com/twliu06/cda_api_common/archive/refs/tags/v1.2.1.tar.gz
+cda-api-common @ https://github.com/twliu06/cda_api_common/archive/refs/tags/v1.2.2.tar.gz
 ```
 
 **用 tarball 網址，不要用 `git+https://`。** `python:3.13-slim` 裡沒有 `git`，
@@ -95,7 +95,14 @@ docker exec <容器> python -m cda_api_common.access_report
   午夜後有新請求寫入才會發生，前一天的紀錄可能還在 `access.log` 裡。
 - 送出失敗（URL 錯、網路不通）只在輸出印一行，不影響其他功能。
 
-手動驗證，把指定日期當成今天，只印出內容不送出：
+手動測試，各送一則到 Teams：
+
+```bash
+docker exec <容器> python -m cda_api_common.access_report --test-alert    # 異常通知，固定的假資料，不讀 log
+docker exec <容器> python -m cda_api_common.access_report --test-weekly   # 週報，最近一個完整週的真實資料，標題加註「測試」
+```
+
+任一指令加上 `--dry-run` 就只印出內容、不送出。也可以把指定日期當成今天，重跑那天的排程：
 
 ```bash
 docker exec <容器> python -m cda_api_common.access_report --date 2026-10-19 --dry-run

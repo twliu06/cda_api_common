@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cda-api-common"
-version = "1.2.1"
+version = "1.2.2"
 description = "逢甲大學資料分析中心 開放資料 API 的共用基礎模組"
 
 # pandas 3.0 需要 3.11 以上。Docker image 是 python:3.13-slim，

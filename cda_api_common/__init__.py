@@ -57,7 +57,7 @@ from cda_api_common.time_utils import now_taipei, now_taipei_str  # noqa: E402
 # 它在載入時就會讀 DB_* 環境變數，若某支 API 不連資料庫就不該被迫設定它們。
 # 需要時各自 from cda_api_common.db import get_conn_direct。
 
-__version__ = "1.2.1"
+__version__ = "1.2.2"
 
 __all__ = [
     "create_app",

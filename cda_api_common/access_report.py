@@ -5,7 +5,12 @@
 
     docker exec <容器> python -m cda_api_common.access_report
 
-手動驗證時可以指定「今天」是哪一天，並只印出內容不送出：
+手動測試，各送一則到 Teams（加 --dry-run 則只印出內容不送出）：
+
+    docker exec <容器> python -m cda_api_common.access_report --test-alert    # 假資料的異常通知
+    docker exec <容器> python -m cda_api_common.access_report --test-weekly   # 最近一個完整週的週報
+
+也可以指定「今天」是哪一天，重跑那天的排程：
 
     docker exec <容器> python -m cda_api_common.access_report --date 2026-10-19 --dry-run
 
@@ -178,7 +183,7 @@ def find_alerts(rows: list[Record], day: date) -> list[Section]:
 
     if errors:
         sections.append(Section(
-            heading="伺服器錯誤（5xx）",
+            heading="💥 伺服器錯誤（5xx）",
             text="程式出過例外，traceback 在應用程式 log。",
             facts=endpoint_facts(
                 errors,
@@ -199,7 +204,7 @@ def find_alerts(rows: list[Record], day: date) -> list[Section]:
 
     if limited:
         sections.append(Section(
-            heading="被限流（429）",
+            heading="🚦 被限流（429）",
             text=f"有呼叫端在一分鐘內超過 {MAX_PER_MINUTE} 次，被擋下的請求沒有拿到資料。",
             facts=endpoint_facts(limited, lambda items: f"{len(items)} 筆"),
             code=f"{grep_day} \\\n  | awk '$7 == 429'",
@@ -209,7 +214,7 @@ def find_alerts(rows: list[Record], day: date) -> list[Section]:
 
     if slow:
         sections.append(Section(
-            heading=f"慢請求（超過 {SLOW_SECONDS:g} 秒）",
+            heading=f"🐢 慢請求（超過 {SLOW_SECONDS:g} 秒）",
             facts=endpoint_facts(
                 slow,
                 lambda items: f"{len(items)} 筆，最慢 {max(r.duration for r in items):.2f}s",
@@ -292,7 +297,7 @@ def weekly_message(records: list[Record], start: date, end: date, details: str) 
         )
 
         sections.append(Section(
-            heading="總覽",
+            heading="📋 總覽",
             facts=[
                 ("請求數", f"{len(external):,} 筆（上週 {previous:,}{change}）"),
                 ("錯誤", errors),
@@ -301,12 +306,12 @@ def weekly_message(records: list[Record], start: date, end: date, details: str) 
         ))
 
         sections.append(Section(
-            heading="端點排行",
+            heading="🏆 端點排行",
             facts=top_facts(Counter(row.endpoint for row in external)),
         ))
 
         sections.append(Section(
-            heading="呼叫者",
+            heading="👥 呼叫者",
             facts=top_facts(Counter(row.caller for row in external), caller_label, "個呼叫者"),
         ))
 
@@ -314,7 +319,7 @@ def weekly_message(records: list[Record], start: date, end: date, details: str) 
         browser = sum(1 for row in external if "Mozilla" in row.ua)
 
         sections.append(Section(
-            heading="來源",
+            heading="🌐 來源",
             facts=[("流量", f"程式 {len(external) - browser:,} 筆｜瀏覽器 {browser:,} 筆")]
             + top_facts(Counter(row.referer for row in external), referer_label, "個來源"),
         ))
@@ -354,7 +359,25 @@ def weekly_message(records: list[Record], start: date, end: date, details: str) 
 # 進入點
 # =========================
 
-def run(today: date, dry_run: bool) -> None:
+def build_details(files: list[str], unparsed: int, scope: str) -> str:
+    span = f"{files[0]} … {files[-1]}" if len(files) > 1 else "、".join(files)
+
+    text = (
+        f"容器：{SERVICE_NAME}\n"
+        f"統計範圍：{scope}\n"
+        f"讀取：{LOG_DIR}/ 底下 {len(files)} 個檔（{span}）\n"
+        f"執行時間：{now_taipei_str()}\n"
+        f"執行紀錄：{REPORT_LOG_PATH}"
+    )
+
+    if unparsed:
+        text += f"\n無法解析的行：{unparsed} 行（格式與 access_log 不符，未列入統計）"
+
+    return text
+
+
+def scheduled_messages(today: date) -> list[Message]:
+    """排程執行：檢查昨天，週一另加上一週的週報"""
     yesterday = today - timedelta(days=1)
     is_monday = today.weekday() == 0
 
@@ -362,24 +385,8 @@ def run(today: date, dry_run: bool) -> None:
     start = yesterday - timedelta(days=13 if is_monday else 0)
     records, files, unparsed = load_records(start, yesterday)
 
-    span = f"{files[0]} … {files[-1]}" if len(files) > 1 else "、".join(files)
-
-    def details(scope: str) -> str:
-        text = (
-            f"容器：{SERVICE_NAME}\n"
-            f"統計範圍：{scope}\n"
-            f"讀取：{LOG_DIR}/ 底下 {len(files)} 個檔（{span}）\n"
-            f"執行時間：{now_taipei_str()}\n"
-            f"執行紀錄：{REPORT_LOG_PATH}"
-        )
-
-        if unparsed:
-            text += f"\n無法解析的行：{unparsed} 行（格式與 access_log 不符，未列入統計）"
-
-        return text
-
     messages = []
-    daily = daily_message(records, yesterday, details(yesterday.isoformat()))
+    daily = daily_message(records, yesterday, build_details(files, unparsed, yesterday.isoformat()))
 
     if daily:
         messages.append(daily)
@@ -387,8 +394,62 @@ def run(today: date, dry_run: bool) -> None:
     if is_monday:
         week_start = yesterday - timedelta(days=6)
         messages.append(weekly_message(
-            records, week_start, yesterday, details(f"{week_start} – {yesterday}（上週為前 7 天）"),
+            records, week_start, yesterday,
+            build_details(files, unparsed, f"{week_start} – {yesterday}（上週為前 7 天）"),
         ))
+
+    return messages
+
+
+def test_weekly_message(today: date) -> Message:
+    """
+    --test-weekly：不論今天星期幾，用真實的 log 產生最近一個完整週（週一到週日）的週報。
+
+    內容與週一排程送出的完全相同，只在標題加註「測試」，免得被誤認成排程的週報。
+    """
+
+    end = today - timedelta(days=today.weekday() + 1)
+    start = end - timedelta(days=6)
+    records, files, unparsed = load_records(start - timedelta(days=7), end)
+
+    message = weekly_message(
+        records, start, end, build_details(files, unparsed, f"{start} – {end}（上週為前 7 天）"),
+    )
+    message.title += "（測試）"
+
+    return message
+
+
+def test_alert_message(today: date) -> Message:
+    """
+    --test-alert：用固定的假資料走一次正式的異常規則與卡片格式，不讀 log。
+
+    正式的 log 平常沒有異常，每日檢查不會發通知，沒辦法用真實資料看到異常卡片。
+    """
+
+    day = today - timedelta(days=1)
+    fake = [
+        Record(day.isoformat(), "-", "/v1/test", 500, 0.05, "test", "-"),
+        Record(day.isoformat(), "-", "/v1/test", 429, 0.0, "test", "-"),
+        Record(day.isoformat(), "-", "/v1/test", 200, SLOW_SECONDS + 1, "test", "-"),
+    ]
+
+    return Message(
+        status="FAIL",
+        title=f"{SERVICE_NAME} 存取紀錄有異常（測試，請忽略）",
+        sections=[Section(text="這是手動測試的通知，以下為假資料，不是真的異常。")]
+        + find_alerts(fake, day),
+        details=f"容器：{SERVICE_NAME}\n執行時間：{now_taipei_str()}\n內容：固定的假資料，未讀取 log",
+    )
+
+
+def run(today: date, mode: str, dry_run: bool) -> None:
+    if mode == "test-alert":
+        messages = [test_alert_message(today)]
+    elif mode == "test-weekly":
+        messages = [test_weekly_message(today)]
+    else:
+        messages = scheduled_messages(today)
 
     for message in messages:
         if dry_run:
@@ -403,12 +464,24 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="存取紀錄的每日異常檢查與週一週報")
     parser.add_argument("--date", type=date.fromisoformat, help="視為今天的日期 YYYY-MM-DD，預設為台北時間的今天")
     parser.add_argument("--dry-run", action="store_true", help="只印出通知內容，不送出")
+
+    # 手動測試用，一行指令就能在 Teams 看到兩種通知
+    tests = parser.add_mutually_exclusive_group()
+    tests.add_argument(
+        "--test-alert", dest="mode", action="store_const", const="test-alert",
+        help="送一則假資料的異常通知，確認異常卡片與送出是否正常",
+    )
+    tests.add_argument(
+        "--test-weekly", dest="mode", action="store_const", const="test-weekly",
+        help="不論今天星期幾，送一則最近一個完整週的週報（標題加註測試）",
+    )
+    parser.set_defaults(mode="scheduled")
     args = parser.parse_args()
 
     today = args.date or now_taipei().date()
 
     try:
-        run(today, args.dry_run)
+        run(today, args.mode, args.dry_run)
 
     except Exception as error:
         # 不靜默結束：讀不到 log 或程式出錯時改送一則失敗通知，否則等於通知機制無聲地停了
