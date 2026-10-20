@@ -10,7 +10,7 @@
 在各 API 的 `requirements.txt` 寫：
 
 ```
-cda-api-common @ https://github.com/twliu06/cda_api_common/archive/refs/tags/v1.1.0.tar.gz
+cda-api-common @ https://github.com/twliu06/cda_api_common/archive/refs/tags/v1.2.0.tar.gz
 ```
 
 **用 tarball 網址，不要用 `git+https://`。** `python:3.13-slim` 裡沒有 `git`，
@@ -72,6 +72,44 @@ app.include_router(measurements.router, prefix="/v1")
 特定情況下產生很難追查的症狀 —— 例如限流被擋下的請求，若順序不對，瀏覽器只會
 看到 CORS 錯誤，看不到真正的 429。
 
+## 存取紀錄通知
+
+`access_report` 讀 `logs/access*.log`，把結果送到 Teams（`TEAMS_WEBHOOK_URL`）。
+由各 API 的 cron 每天執行一次：
+
+```bash
+docker exec <容器> python -m cda_api_common.access_report
+```
+
+| 通知 | 何時發 | 內容 |
+|---|---|---|
+| 🚨 `<SERVICE_NAME> 存取紀錄有異常（M/D）` | 前一天有 5xx、429，或耗時超過 `ACCESS_ALERT_SLOW_SECONDS` 的請求；全部正常就不發 | 每項異常依端點列出筆數，附上可直接貼到主機執行的追查指令 |
+| 📊 `<SERVICE_NAME> 存取週報（M/D–M/D）` | 每週一，統計上週一到週日，**不論結果都發** | 請求數與上週比較、4xx／5xx、最慢端點、端點排行、呼叫者、瀏覽器／程式比例、Referer 排行；結尾為綠字「本週無異常」或紅字列出有異常的日期 |
+| 🚨 `<SERVICE_NAME> 存取紀錄通知執行失敗` | 程式本身出錯，例如讀不到 log | 錯誤訊息，traceback 放在除錯資訊 |
+
+- 週報同時是心跳。容器沒在跑、cron 沒執行時程式根本不會啟動，什麼通知都不會發，
+  **某週一沒收到某支 API 的週報，就代表那支有問題。**
+- 通知不列 IP。需要細節時，用通知裡的指令回主機看 log。
+- 呼叫者為 `api_catalog` 的請求不列入週報統計，只用一行註明筆數；每日異常檢查仍包含它們。
+- 統計依每行的時間戳篩日期，`access.log` 與所有 `access_*.log` 都會讀：輪替要等到
+  午夜後有新請求寫入才會發生，前一天的紀錄可能還在 `access.log` 裡。
+- 送出失敗（URL 錯、網路不通）只在輸出印一行，不影響其他功能。
+
+手動驗證，把指定日期當成今天，只印出內容不送出：
+
+```bash
+docker exec <容器> python -m cda_api_common.access_report --date 2026-10-19 --dry-run
+```
+
+| 輸出 | 代表什麼 |
+|---|---|
+| `每日檢查 2026-10-18：N 筆，異常 0 項`，沒有其他內容 | 前一天正常，不會發通知 |
+| 每日檢查之後印出 🚨 開頭的內容 | 前一天有異常，正式執行時會發這則 |
+| `週報 …`（只有指定日期是週一時才會出現） | 週報的內容 |
+| `已送出 Teams 通知：…`（正式執行） | 送出成功 |
+| `未設定 TEAMS_WEBHOOK_URL，略過通知` | 該 API 的 `.env` 沒有設定 webhook |
+| `Teams 通知送出失敗：…` | URL 錯誤或網路不通，原因在冒號後 |
+
 ## 資料庫
 
 `db` 刻意不從套件根匯入，因為它在載入時就會讀 `DB_*` 環境變數。需要時各自匯入：
@@ -103,6 +141,9 @@ psycopg2-binary、python-dotenv、pytz。這組數字取自正式環境實際跑
 | `ACCESS_LOG_EXCLUDE_PATHS` | `/` | 不記錄的路徑，逗號分隔 |
 | `RATE_LIMIT_PER_MINUTE` | `120` | 每 IP 每分鐘上限，`0` 為關閉 |
 | `RATE_LIMIT_EXCLUDE_PATHS` | `/` | 不限流的路徑，逗號分隔 |
+| `TEAMS_WEBHOOK_URL` | 無 | 存取紀錄通知的 Teams webhook。**視同密碼**，只放 `.env`；未設定時不發通知 |
+| `ACCESS_ALERT_SLOW_SECONDS` | `1` | 每日檢查中，耗時超過幾秒算慢請求 |
+| `ACCESS_REPORT_HOST_DIR` | `~/<SERVICE_NAME>` | 通知裡追查指令使用的**主機上**專案目錄 |
 
 ### `.env` 的尋找方式
 
