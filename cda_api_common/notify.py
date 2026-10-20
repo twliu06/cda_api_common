@@ -53,8 +53,11 @@ class Section:
     heading: str | None = None
     text: str | None = None
     facts: list[tuple[str, str]] = field(default_factory=list)
-    # 等寬字型，放要貼到伺服器上執行的指令
-    code: str | None = None
+    # 要貼到伺服器上執行的指令，每組為（小標, 指令）；小標可為空字串。
+    #
+    # 小標不要寫進指令裡當 shell 註解：Teams 會把文字當 markdown，
+    # 以 "# " 開頭的行會變成最大的一級標題。
+    commands: list[tuple[str, str]] = field(default_factory=list)
 
     def plain_text(self) -> str:
         """純文字版本：手機推播預覽、截斷長度、--dry-run 都用這個"""
@@ -65,8 +68,8 @@ class Section:
 
         lines += [f"　{name}：{value}" for name, value in self.facts]
 
-        if self.code:
-            lines.append(self.code)
+        for label, command in self.commands:
+            lines += [label, command] if label else [command]
 
         return "\n".join(lines)
 
@@ -159,10 +162,20 @@ def build_payload(message: Message) -> dict:
                 "spacing": "Small",
             })
 
-        if section.code:
+        for label, command in section.commands:
+            # 小標與段落小標同樣式：預設大小、粗體
+            if label:
+                blocks.append({
+                    "type": "TextBlock",
+                    "text": label,
+                    "weight": "Bolder",
+                    "spacing": "Medium",
+                    "wrap": True,
+                })
+
             blocks.append({
                 "type": "TextBlock",
-                "text": section.code,
+                "text": command,
                 "fontType": "Monospace",
                 "size": "Small",
                 "spacing": "Small",

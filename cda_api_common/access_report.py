@@ -191,13 +191,14 @@ def find_alerts(rows: list[Record], day: date) -> list[Section]:
             ),
             # 應用程式 log 的檔名是容器啟動那天的日期，之後不會換檔，
             # 所以不能拿出錯的日期當檔名找，改成搜尋所有檔案裡那一天的錯誤
-            code=(
-                f"# 出錯的請求\n"
-                f"{grep_day} \\\n  | awk '$7 >= 500'\n"
-                f"# traceback\n"
-                f"grep -h -A30 '^\\[{day.isoformat()}.*Unhandled error' \\\n"
-                f"  {HOST_DIR}/logs/{SERVICE_NAME}_*.log"
-            ),
+            commands=[
+                ("🔍 出錯的請求", f"{grep_day} \\\n  | awk '$7 >= 500'"),
+                (
+                    "🧾 traceback",
+                    f"grep -h -A30 '^\\[{day.isoformat()}.*Unhandled error' \\\n"
+                    f"  {HOST_DIR}/logs/{SERVICE_NAME}_*.log",
+                ),
+            ],
         ))
 
     limited = [row for row in rows if row.status == 429]
@@ -207,7 +208,7 @@ def find_alerts(rows: list[Record], day: date) -> list[Section]:
             heading="🚦 被限流（429）",
             text=f"有呼叫端在一分鐘內超過 {MAX_PER_MINUTE} 次，被擋下的請求沒有拿到資料。",
             facts=endpoint_facts(limited, lambda items: f"{len(items)} 筆"),
-            code=f"{grep_day} \\\n  | awk '$7 == 429'",
+            commands=[("", f"{grep_day} \\\n  | awk '$7 == 429'")],
         ))
 
     slow = [row for row in rows if row.duration > SLOW_SECONDS]
@@ -219,10 +220,11 @@ def find_alerts(rows: list[Record], day: date) -> list[Section]:
                 slow,
                 lambda items: f"{len(items)} 筆，最慢 {max(r.duration for r in items):.2f}s",
             ),
-            code=(
+            commands=[(
+                "",
                 f"{grep_day} \\\n"
-                f"  | awk '{{t=$8; sub(/s$/,\"\",t); if (t+0 > {SLOW_SECONDS:g}) print}}'"
-            ),
+                f"  | awk '{{t=$8; sub(/s$/,\"\",t); if (t+0 > {SLOW_SECONDS:g}) print}}'",
+            )],
         ))
 
     return sections
