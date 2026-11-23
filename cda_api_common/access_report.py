@@ -18,7 +18,7 @@
 
     伺服器錯誤   狀態碼 5xx
     被限流       狀態碼 429
-    慢請求       耗時超過 ACCESS_ALERT_SLOW_SECONDS（預設 1 秒）
+    慢請求       耗時超過 ACCESS_ALERT_SLOW_SECONDS（預設 3 秒）
 
 週報不論結果都會發：週報同時是心跳，哪一週沒收到，就代表排程或容器有問題
 （容器沒在跑、cron 沒執行）——這兩種情況每日檢查都抓不到，因為程式根本沒有跑。
@@ -50,7 +50,7 @@ from cda_api_common.time_utils import now_taipei, now_taipei_str
 SERVICE_NAME = os.getenv("SERVICE_NAME", "api")
 
 # 超過幾秒算慢請求
-SLOW_SECONDS = float(os.getenv("ACCESS_ALERT_SLOW_SECONDS", "1"))
+SLOW_SECONDS = float(os.getenv("ACCESS_ALERT_SLOW_SECONDS", "3"))
 
 # 追查指令裡的專案目錄，是「主機上」的路徑。
 # 程式跑在容器裡，看到的是 /app，但指令是要貼到主機上執行的。

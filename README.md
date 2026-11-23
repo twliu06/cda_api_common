@@ -10,7 +10,7 @@
 在各 API 的 `requirements.txt` 寫：
 
 ```
-cda-api-common @ https://github.com/twliu06/cda_api_common/archive/refs/tags/v1.2.4.tar.gz
+cda-api-common @ https://github.com/twliu06/cda_api_common/archive/refs/tags/v1.2.5.tar.gz
 ```
 
 **用 tarball 網址，不要用 `git+https://`。** `python:3.13-slim` 裡沒有 `git`，
@@ -149,7 +149,7 @@ psycopg2-binary、python-dotenv、pytz。這組數字取自正式環境實際跑
 | `RATE_LIMIT_PER_MINUTE` | `120` | 每 IP 每分鐘上限，`0` 為關閉 |
 | `RATE_LIMIT_EXCLUDE_PATHS` | `/` | 不限流的路徑，逗號分隔 |
 | `TEAMS_WEBHOOK_URL` | 無 | 存取紀錄通知的 Teams webhook。**視同密碼**，只放 `.env`；未設定時不發通知 |
-| `ACCESS_ALERT_SLOW_SECONDS` | `1` | 每日檢查中，耗時超過幾秒算慢請求 |
+| `ACCESS_ALERT_SLOW_SECONDS` | `3` | 每日檢查中，耗時超過幾秒算慢請求 |
 | `ACCESS_REPORT_HOST_DIR` | `~/<SERVICE_NAME>` | 通知裡追查指令使用的**主機上**專案目錄 |
 
 ### `.env` 的尋找方式
