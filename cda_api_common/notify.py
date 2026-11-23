@@ -57,6 +57,9 @@ class Section:
     #
     # 小標不要寫進指令裡當 shell 註解：Teams 會把文字當 markdown，
     # 以 "# " 開頭的行會變成最大的一級標題。
+    #
+    # 指令照 shell 原樣寫即可：放進卡片前會先做 markdown 跳脫（見 _escape_markdown），
+    # 純文字版本則維持原樣。
     commands: list[tuple[str, str]] = field(default_factory=list)
 
     def plain_text(self) -> str:
@@ -92,6 +95,16 @@ class Message:
             parts.append(self.footer[1])
 
         return "\n\n".join(parts)
+
+
+# Teams 會把 TextBlock 的文字當 markdown，指令裡的這些字元會被吃掉或改變樣式：
+# `\[` 顯示成 `[`（grep 的跳脫消失），兩個 `*` 之間變斜體。
+_MARKDOWN_SPECIALS = "\\*_`[]"
+
+
+def _escape_markdown(text: str) -> str:
+    """讓指令在卡片上顯示的內容與原字串一致，複製下來可以直接執行"""
+    return "".join(f"\\{char}" if char in _MARKDOWN_SPECIALS else char for char in text)
 
 
 def _truncate(text: str, limit: int) -> str:
@@ -175,7 +188,7 @@ def build_payload(message: Message) -> dict:
 
             blocks.append({
                 "type": "TextBlock",
-                "text": command,
+                "text": _escape_markdown(command),
                 "fontType": "Monospace",
                 "size": "Small",
                 "spacing": "Small",
